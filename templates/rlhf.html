@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RLHF - Which is Human?</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: #888;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+        .comparison-container {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        .path-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            background-color: #0b0e17;
+            border: 3px solid #333;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        canvas:hover {
+            border-color: #4cc9f0;
+            transform: scale(1.02);
+        }
+        canvas.selected {
+            border-color: #22d86f;
+            box-shadow: 0 0 20px rgba(34, 216, 111, 0.5);
+        }
+        .label {
+            margin-top: 1rem;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ccc;
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #444;
+        }
+        button:disabled {
+            background-color: #222;
+            color: #666;
+            cursor: not-allowed;
+        }
+        #submitBtn {
+            background-color: #22d86f;
+            color: #000;
+            font-weight: bold;
+        }
+        #submitBtn:hover:not(:disabled) {
+            background-color: #1fb861;
+        }
+        #status {
+            margin-top: 1rem;
+            font-size: 1.1rem;
+            color: #ccc;
+            text-align: center;
+        }
+        #stats {
+            margin-top: 0.5rem;
+            color: #888;
+            font-size: 0.9rem;
+        }
+        .loading {
+            color: #4cc9f0;
+            font-style: italic;
+        }
+        .training-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(90deg, #22d86f, #4cc9f0);
+            color: #000;
+            padding: 1rem;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none;
+        }
+        .training-banner.active {
+            display: block;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(0,0,0,0.3);
+            margin-top: 0.5rem;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #000;
+            width: 0%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        .mouse-cursor {
+            position: absolute;
+            width: 20px; height: 20px;
+            pointer-events: none;
+            transform: translate(-2px, -2px);
+            z-index: 10;
+            display: none;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+        .replay-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            padding: 8px 12px;
+            background-color: rgba(34, 216, 111, 0.9);
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            transition: all 0.2s;
+            z-index: 5;
+        }
+        .replay-btn:hover {
+            background-color: rgba(34, 216, 111, 1);
+            transform: scale(1.05);
+        }
+        .replay-btn.show {
+            display: flex;
+        }
+        .leaderboard-widget {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #2a2a2a, #1f1f1f);
+            border: 2px solid #333;
+            border-radius: 12px;
+            padding: 1rem;
+            width: 280px;
+            max-height: 400px;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        .widget-header {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 0.75rem;
+            text-align: center;
+            color: #fff;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #333;
+        }
+        .leaderboard-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .leaderboard-item-small {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .leaderboard-item-small:hover {
+            background: rgba(0, 0, 0, 0.5);
+            transform: translateX(2px);
+        }
+        .leaderboard-item-small.rank-1 {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 237, 78, 0.3));
+            border: 1px solid rgba(255, 215, 0, 0.5);
+        }
+        .leaderboard-item-small.rank-2 {
+            background: linear-gradient(135deg, rgba(192, 192, 192, 0.3), rgba(232, 232, 232, 0.3));
+            border: 1px solid rgba(192, 192, 192, 0.5);
+        }
+        .leaderboard-item-small.rank-3 {
+            background: linear-gradient(135deg, rgba(205, 127, 50, 0.3), rgba(232, 165, 102, 0.3));
+            border: 1px solid rgba(205, 127, 50, 0.5);
+        }
+        .rank-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .rank-badge {
+            font-size: 1.2rem;
+            min-width: 30px;
+            text-align: center;
+        }
+        .model-name-small {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .elo-small {
+            font-weight: bold;
+            font-size: 1rem;
+            color: #4cc9f0;
+        }
+        .elo-change {
+            font-size: 0.75rem;
+            margin-left: 0.25rem;
+            font-weight: normal;
+        }
+        .elo-change.positive {
+            color: #22d86f;
+        }
+        .elo-change.negative {
+            color: #ff4d5a;
+        }
+        .history-toggle {
+            text-align: center;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            color: #888;
+            cursor: pointer;
+            font-size: 0.85rem;
+            border-top: 1px solid #333;
+        }
+        .history-toggle:hover {
+            color: #4cc9f0;
+        }
+        .history-section {
+            display: none;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #333;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .history-section.show {
+            display: block;
+        }
+        .history-item {
+            padding: 0.5rem;
+            font-size: 0.8rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+        }
+        .history-timestamp {
+            color: #666;
+            font-size: 0.75rem;
+        }
+        .history-reason {
+            color: #888;
+            font-style: italic;
+        }
+        .history-reason.training {
+            color: #22d86f;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="training-banner" id="trainingBanner">
+        🚀 RLHF Training in Progress - Model is learning from your feedback!
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 100%"></div>
+        </div>
+    </div>
+
+    <div style="position: fixed; top: 20px; left: 20px; display: flex; gap: 1rem; z-index: 999;">
+        <a href="/" style="color: #4cc9f0; text-decoration: none; padding: 0.5rem 1rem; background-color: #252525; border-radius: 6px; transition: all 0.2s;">← Home</a>
+    </div>
+
+    <h1>Which path is most human?</h1>
+    <p class="subtitle">Click on the path that looks most natural and human-like (3-way model comparison)</p>
+    
+    <div class="leaderboard-widget">
+        <div class="widget-header">🏆 Live Leaderboard</div>
+        <div id="leaderboardContent" class="leaderboard-list">
+            <div style="text-align: center; padding: 1rem; color: #666;">Loading...</div>
+        </div>
+        <div class="history-toggle" onclick="toggleHistory()">
+            📊 View History
+        </div>
+        <div id="historySection" class="history-section">
+            <div style="text-align: center; padding: 1rem; color: #666;">Loading history...</div>
+        </div>
+    </div>
+    
+    <div class="comparison-container">
+        <div class="path-option">
+            <div style="position: relative;">
+                <canvas id="canvasA" width="640" height="360"></canvas>
+                <div id="cursorA" class="mouse-cursor">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <button class="replay-btn" id="replayA" onclick="replayPath('A')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                        <path d="M21 3v5h-5"/>
+                    </svg>
+                    Replay
+                </button>
+            </div>
+            <div class="label">Option A</div>
+        </div>
+        <div class="path-option">
+            <div style="position: relative;">
+                <canvas id="canvasB" width="640" height="360"></canvas>
+                <div id="cursorB" class="mouse-cursor">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <button class="replay-btn" id="replayB" onclick="replayPath('B')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                        <path d="M21 3v5h-5"/>
+                    </svg>
+                    Replay
+                </button>
+            </div>
+            <div class="label">Option B</div>
+        </div>
+        <div class="path-option">
+            <div style="position: relative;">
+                <canvas id="canvasC" width="640" height="360"></canvas>
+                <div id="cursorC" class="mouse-cursor">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <button class="replay-btn" id="replayC" onclick="replayPath('C')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                        <path d="M21 3v5h-5"/>
+                    </svg>
+                    Replay
+                </button>
+            </div>
+            <div class="label">Option C</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="skipBtn">Skip</button>
+        <button id="submitBtn" disabled>Submit Choice</button>
+    </div>
+
+    <div id="status">Loading comparison...</div>
+    <div id="stats">Comparisons made: 0</div>
+
+    <script>
+        const canvasA = document.getElementById('canvasA');
+        const canvasB = document.getElementById('canvasB');
+        const canvasC = document.getElementById('canvasC');
+        const ctxA = canvasA.getContext('2d');
+        const ctxB = canvasB.getContext('2d');
+        const ctxC = canvasC.getContext('2d');
+        const statusEl = document.getElementById('status');
+        const statsEl = document.getElementById('stats');
+        const submitBtn = document.getElementById('submitBtn');
+        const skipBtn = document.getElementById('skipBtn');
+        const trainingBanner = document.getElementById('trainingBanner');
+        const cursorA = document.getElementById('cursorA');
+        const cursorB = document.getElementById('cursorB');
+        const cursorC = document.getElementById('cursorC');
+        const replayBtnA = document.getElementById('replayA');
+        const replayBtnB = document.getElementById('replayB');
+        const replayBtnC = document.getElementById('replayC');
+
+        let currentComparison = null;
+        let selectedOption = null;
+        let comparisonCount = 0;
+        let trainingCheckInterval = null;
+        let isAnimating = false;
+
+        function checkTrainingStatus() {
+            fetch('/api/training_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.training_in_progress) {
+                        trainingBanner.classList.add('active');
+                    } else {
+                        trainingBanner.classList.remove('active');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking training status:', error);
+                });
+        }
+
+        // Check training status every 5 seconds
+        trainingCheckInterval = setInterval(checkTrainingStatus, 5000);
+        // Check immediately on load
+        checkTrainingStatus();
+
+        async function updateLeaderboard() {
+            try {
+                const response = await fetch('/api/leaderboard');
+                if (!response.ok) return;
+
+                const data = await response.json();
+                const leaderboard = data.leaderboard;
+
+                const descriptions = {
+                    'human': 'Real human traces',
+                    'base': 'Base model',
+                    'rlhf': 'RLHF model',
+                    'rl_classifier': 'RL Classifier'
+                };
+
+                // Get previous ratings from history for change calculation
+                let previousRatings = null;
+                try {
+                    const historyResponse = await fetch('/api/elo_history');
+                    if (historyResponse.ok) {
+                        const historyData = await historyResponse.json();
+                        if (historyData.history && historyData.history.length > 0) {
+                            eloHistory = historyData.history;
+                            // Get the last snapshot
+                            previousRatings = historyData.history[historyData.history.length - 1].ratings;
+                        }
+                    }
+                } catch (e) {
+                    console.log('Could not fetch history for change calculation');
+                }
+
+                let html = '';
+                leaderboard.forEach((entry, index) => {
+                    const rank = index + 1;
+                    const rankClass = `rank-${rank}`;
+                    const badge = rank === 1 ? '🥇' : (rank === 2 ? '🥈' : (rank === 3 ? '🥉' : `#${rank}`));
+                    
+                    // Calculate change from previous snapshot
+                    let changeHtml = '';
+                    if (previousRatings && previousRatings[entry.model_id]) {
+                        const change = entry.elo - previousRatings[entry.model_id];
+                        if (Math.abs(change) > 0.1) {
+                            const changeClass = change > 0 ? 'positive' : 'negative';
+                            const changeSymbol = change > 0 ? '+' : '';
+                            changeHtml = `<span class="elo-change ${changeClass}">${changeSymbol}${change.toFixed(1)}</span>`;
+                        }
+                    }
+                    
+                    html += `
+                        <div class="leaderboard-item-small ${rank <= 3 ? rankClass : ''}">
+                            <div class="rank-info">
+                                <div class="rank-badge">${badge}</div>
+                                <div class="model-name-small">${entry.name}</div>
+                            </div>
+                            <div class="elo-small">${entry.elo}${changeHtml}</div>
+                        </div>
+                    `;
+                });
+
+                document.getElementById('leaderboardContent').innerHTML = html;
+            } catch (error) {
+                console.error('Error updating leaderboard:', error);
+            }
+        }
+
+        // Update leaderboard every 5 seconds
+        setInterval(updateLeaderboard, 5000);
+        // Update immediately on load
+        updateLeaderboard();
+
+        let eloHistory = [];
+        let historyVisible = false;
+
+        function toggleHistory() {
+            const historySection = document.getElementById('historySection');
+            historyVisible = !historyVisible;
+            
+            if (historyVisible) {
+                historySection.classList.add('show');
+                updateHistory();
+            } else {
+                historySection.classList.remove('show');
+            }
+        }
+
+        async function updateHistory() {
+            try {
+                const response = await fetch('/api/elo_history');
+                if (!response.ok) return;
+
+                const data = await response.json();
+                eloHistory = data.history;
+
+                const historySection = document.getElementById('historySection');
+                
+                if (eloHistory.length === 0) {
+                    historySection.innerHTML = '<div style="text-align: center; padding: 1rem; color: #666;">No history yet</div>';
+                    return;
+                }
+
+                // Show last 5 snapshots in reverse order (newest first)
+                const recentHistory = eloHistory.slice(-5).reverse();
+                
+                let html = '';
+                recentHistory.forEach((snapshot, index) => {
+                    const date = new Date(snapshot.timestamp);
+                    const timeStr = date.toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    const isTraining = snapshot.reason.includes('rlhf_training');
+                    const reasonClass = isTraining ? 'training' : '';
+                    const reasonText = snapshot.reason.replace(/_/g, ' ');
+                    
+                    html += `
+                        <div class="history-item">
+                            <div class="history-timestamp">${timeStr}</div>
+                            <div class="history-reason ${reasonClass}">${reasonText}</div>
+                            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.75rem;">
+                                <span>Base: ${Math.round(snapshot.ratings.base)}</span>
+                                <span>RLHF: ${Math.round(snapshot.ratings.rlhf)}</span>
+                                <span>RL-C: ${Math.round(snapshot.ratings.rl_classifier)}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                historySection.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading history:', error);
+            }
+        }
+
+        async function animatePath(cursor, ctx, path, canvas) {
+            if (isAnimating) return;
+            isAnimating = true;
+            
+            cursor.style.display = 'block';
+            
+            const duration = 1500; // 1.5 seconds
+            const fps = 30; // Limit to 30 FPS to obfuscate real vs AI
+            const frameTime = 1000 / fps;
+            const totalFrames = Math.floor(duration / frameTime);
+            
+            let lastDrawnIndex = -1;
+            
+            for (let frame = 0; frame <= totalFrames; frame++) {
+                const progress = frame / totalFrames;
+                const currentIndex = Math.floor(progress * (path.length - 1));
+                const point = path[currentIndex];
+                
+                cursor.style.left = point.x + 'px';
+                cursor.style.top = point.y + 'px';
+                
+                // Draw trailing line from last drawn point to current
+                if (lastDrawnIndex >= 0 && currentIndex > lastDrawnIndex) {
+                    ctx.beginPath();
+                    ctx.moveTo(path[lastDrawnIndex].x, path[lastDrawnIndex].y);
+                    
+                    // Draw all segments between last drawn and current to maintain trajectory
+                    for (let i = lastDrawnIndex + 1; i <= currentIndex; i++) {
+                        ctx.lineTo(path[i].x, path[i].y);
+                    }
+                    
+                    ctx.strokeStyle = "#4cc9f0";
+                    ctx.lineWidth = 3;
+                    ctx.lineCap = 'round';
+                    ctx.stroke();
+                    
+                    lastDrawnIndex = currentIndex;
+                } else if (lastDrawnIndex < 0 && currentIndex >= 0) {
+                    lastDrawnIndex = currentIndex;
+                }
+                
+                await new Promise(r => setTimeout(r, frameTime));
+            }
+            
+            cursor.style.display = 'none';
+            isAnimating = false;
+        }
+
+        async function replayPath(option) {
+            if (isAnimating || !currentComparison) return;
+            
+            const canvas = option === 'A' ? canvasA : (option === 'B' ? canvasB : canvasC);
+            const ctx = option === 'A' ? ctxA : (option === 'B' ? ctxB : ctxC);
+            const cursor = option === 'A' ? cursorA : (option === 'B' ? cursorB : cursorC);
+            const path = option === 'A' ? currentComparison.pathA : (option === 'B' ? currentComparison.pathB : currentComparison.pathC);
+            
+            // Redraw the path from scratch
+            drawPath(ctx, path, currentComparison.start, currentComparison.end, canvas.width, canvas.height);
+            
+            // Animate cursor
+            await animatePath(cursor, ctx, path, canvas);
+        }
+
+        function drawPath(ctx, path, startPoint, endPoint, width, height) {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw the path
+            if (path.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(path[0].x, path[0].y);
+                for (let i = 1; i < path.length; i++) {
+                    ctx.lineTo(path[i].x, path[i].y);
+                }
+                ctx.strokeStyle = "#4cc9f0";
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+            }
+
+            // Draw start point
+            ctx.beginPath();
+            ctx.arc(startPoint.x, startPoint.y, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = "#22d86f";
+            ctx.fill();
+
+            // Draw end point
+            ctx.beginPath();
+            ctx.arc(endPoint.x, endPoint.y, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = "#ff4d5a";
+            ctx.fill();
+        }
+
+        async function loadComparison() {
+            selectedOption = null;
+            canvasA.classList.remove('selected');
+            canvasB.classList.remove('selected');
+            canvasC.classList.remove('selected');
+            submitBtn.disabled = true;
+            statusEl.textContent = "Loading...";
+            statusEl.className = "loading";
+
+            try {
+                const response = await fetch('/api/get_comparison');
+                if (!response.ok) {
+                    throw new Error('Failed to load comparison');
+                }
+
+                currentComparison = await response.json();
+                
+                // Draw all three paths
+                drawPath(ctxA, currentComparison.pathA, 
+                        currentComparison.start, currentComparison.end,
+                        canvasA.width, canvasA.height);
+                drawPath(ctxB, currentComparison.pathB,
+                        currentComparison.start, currentComparison.end,
+                        canvasB.width, canvasB.height);
+                drawPath(ctxC, currentComparison.pathC,
+                        currentComparison.start, currentComparison.end,
+                        canvasC.width, canvasC.height);
+
+                // Show replay buttons
+                replayBtnA.classList.add('show');
+                replayBtnB.classList.add('show');
+                replayBtnC.classList.add('show');
+
+                statusEl.textContent = "Select the path that looks most human-like";
+                statusEl.className = "";
+            } catch (error) {
+                console.error('Error loading comparison:', error);
+                statusEl.textContent = "Error loading comparison. Please refresh.";
+            }
+        }
+
+        canvasA.addEventListener('click', () => {
+            selectedOption = 'A';
+            canvasA.classList.add('selected');
+            canvasB.classList.remove('selected');
+            canvasC.classList.remove('selected');
+            submitBtn.disabled = false;
+            statusEl.textContent = "Option A selected. Click Submit or choose another option.";
+        });
+
+        canvasB.addEventListener('click', () => {
+            selectedOption = 'B';
+            canvasB.classList.add('selected');
+            canvasA.classList.remove('selected');
+            canvasC.classList.remove('selected');
+            submitBtn.disabled = false;
+            statusEl.textContent = "Option B selected. Click Submit or choose another option.";
+        });
+
+        canvasC.addEventListener('click', () => {
+            selectedOption = 'C';
+            canvasC.classList.add('selected');
+            canvasA.classList.remove('selected');
+            canvasB.classList.remove('selected');
+            submitBtn.disabled = false;
+            statusEl.textContent = "Option C selected. Click Submit or choose another option.";
+        });
+
+        submitBtn.addEventListener('click', async () => {
+            if (!selectedOption || !currentComparison) return;
+
+            submitBtn.disabled = true;
+            skipBtn.disabled = true;
+            statusEl.textContent = "Saving...";
+
+            try {
+                const response = await fetch('/api/save_comparison', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sample_id: currentComparison.sample_id,
+                        start: currentComparison.start,
+                        end: currentComparison.end,
+                        model_paths: currentComparison.model_paths,
+                        chosen_option: selectedOption,
+                        model_mapping: currentComparison.model_mapping
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    comparisonCount++;
+                    statsEl.textContent = `Comparisons made: ${comparisonCount} (Total: ${data.count})`;
+                    
+                    // Update leaderboard immediately after saving
+                    updateLeaderboard();
+                    
+                    if (data.training_started) {
+                        statusEl.textContent = "🎉 " + data.message;
+                        statusEl.style.color = "#22d86f";
+                        setTimeout(() => {
+                            statusEl.style.color = "#ccc";
+                            loadComparison();
+                        }, 3000);
+                    } else {
+                        statusEl.textContent = "Saved! Loading next comparison...";
+                        setTimeout(loadComparison, 500);
+                    }
+                } else {
+                    statusEl.textContent = "Error saving comparison.";
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                statusEl.textContent = "Network error.";
+            } finally {
+                skipBtn.disabled = false;
+            }
+        });
+
+        skipBtn.addEventListener('click', loadComparison);
+
+        // Initialize
+        loadComparison();
+    </script>
+</body>
+</html>

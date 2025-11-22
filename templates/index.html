@@ -212,6 +212,13 @@
                 </svg>
                 Humanizer Demo
             </h1>
+            {% if not hf_mode %}
+            <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                <a href="/collect" style="color: var(--primary-color); text-decoration: none; padding: 0.5rem 1rem; background: var(--panel-bg); border-radius: 6px; transition: all 0.2s;">📊 Collect Data</a>
+                <a href="/rlhf" style="color: var(--primary-color); text-decoration: none; padding: 0.5rem 1rem; background: var(--panel-bg); border-radius: 6px; transition: all 0.2s;">🎯 Rate Models</a>
+                <a href="/leaderboard" style="color: var(--primary-color); text-decoration: none; padding: 0.5rem 1rem; background: var(--panel-bg); border-radius: 6px; transition: all 0.2s;">🏆 Leaderboard</a>
+            </div>
+            {% endif %}
         </header>
         
         <div class="canvas-wrapper">
@@ -301,7 +308,7 @@
     <div class="writeup">
         <h2>About This Project</h2>
         <p>
-            This is a demo of a <strong>diffusion model</strong> that was trained on about 600 samples of real human mouse movement data. (from my friends and me collecting data, using the <a href="/collect" style="color: var(--primary-color);">data collection page</a>)
+            This is a demo of a <strong>diffusion model</strong> that was trained on about 600 samples of real human mouse movement data. (from my friends and me collecting data{% if not hf_mode %}, using the <a href="/collect" style="color: var(--primary-color);">data collection page</a>{% endif %})
             The model is a 1D U-Net that refines (yes, refines) a straight line from x1,y1 to x2,y2 into a more human-like trajectory.
         </p>
         <p>

@@ -72,3 +72,87 @@ class HumanTraceDataset(Dataset):
             'x': torch.from_numpy(sample['path']),
             'cond': torch.from_numpy(sample['target'])
         }
+
+
+class RLHFDataset(Dataset):
+    """Dataset for RLHF training using human preference comparisons"""
+    def __init__(self, data_path, seq_len=32):
+        self.seq_len = seq_len
+        self.samples = []
+        
+        path = Path(data_path)
+        if not path.exists():
+            print(f"Warning: {data_path} not found. Dataset will be empty.")
+            return
+
+        with open(path, 'r') as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                    self.samples.append(self._process_sample(obj))
+                except Exception as e:
+                    print(f"Error parsing RLHF line: {e}")
+
+    def _process_sample(self, obj):
+        if obj['chosen'] == 'human':
+            chosen_path = obj['human_path']
+            rejected_path = obj['ai_path']
+        else:
+            chosen_path = obj['ai_path']
+            rejected_path = obj['human_path']
+        
+        start = obj['start']
+        end = obj['end']
+        dx = end['x'] - start['x']
+        dy = end['y'] - start['y']
+        
+        scale = max(abs(dx), abs(dy), 1.0)
+        target = np.array([dx / scale, dy / scale], dtype=np.float32)
+        
+        chosen_points = np.array([[p['x'], p['y']] for p in chosen_path], dtype=np.float32)
+        chosen_resampled = self._resample(chosen_points, self.seq_len)
+        chosen_resampled[0] = np.array([0.0, 0.0], dtype=np.float32)
+        chosen_resampled[-1] = target
+        chosen_resampled = chosen_resampled.transpose(1, 0).astype(np.float32)
+        
+        rejected_points = np.array([[p['x'], p['y']] for p in rejected_path], dtype=np.float32)
+        rejected_resampled = self._resample(rejected_points, self.seq_len)
+        rejected_resampled[0] = np.array([0.0, 0.0], dtype=np.float32)
+        rejected_resampled[-1] = target
+        rejected_resampled = rejected_resampled.transpose(1, 0).astype(np.float32)
+        
+        return {
+            'chosen_path': chosen_resampled,  # [2, N]
+            'rejected_path': rejected_resampled,  # [2, N]
+            'target': target  # [2]
+        }
+
+    def _resample(self, points, target_len):
+        if len(points) < 2:
+            return np.tile(points[0], (target_len, 1))
+            
+        dists = np.linalg.norm(points[1:] - points[:-1], axis=1)
+        cum_dist = np.insert(np.cumsum(dists), 0, 0.0)
+        total_dist = cum_dist[-1]
+        
+        if total_dist == 0:
+            return np.tile(points[0], (target_len, 1))
+            
+        new_dists = np.linspace(0, total_dist, target_len)
+        
+        new_x = np.interp(new_dists, cum_dist, points[:, 0])
+        new_y = np.interp(new_dists, cum_dist, points[:, 1])
+        
+        return np.stack([new_x, new_y], axis=1)
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        sample = self.samples[idx]
+        return {
+            'chosen_x': torch.from_numpy(sample['chosen_path']),
+            'rejected_x': torch.from_numpy(sample['rejected_path']),
+            'cond': torch.from_numpy(sample['target'])
+        }
+

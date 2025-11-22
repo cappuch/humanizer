@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Leaderboard - ELO Rankings</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #22d86f, #4cc9f0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            color: #888;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+        .stats-banner {
+            background-color: #252525;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .stats-banner .number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4cc9f0;
+        }
+        .stats-banner .label {
+            color: #888;
+            font-size: 0.9rem;
+        }
+        .leaderboard-container {
+            width: 100%;
+            max-width: 600px;
+        }
+        .leaderboard-item {
+            background: linear-gradient(135deg, #2a2a2a, #1f1f1f);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.3s;
+            border: 2px solid #333;
+        }
+        .leaderboard-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(76, 201, 240, 0.2);
+            border-color: #4cc9f0;
+        }
+        .leaderboard-item.rank-1 {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #000;
+            border-color: #ffd700;
+            box-shadow: 0 4px 30px rgba(255, 215, 0, 0.4);
+        }
+        .leaderboard-item.rank-2 {
+            background: linear-gradient(135deg, #c0c0c0, #e8e8e8);
+            color: #000;
+            border-color: #c0c0c0;
+            box-shadow: 0 4px 30px rgba(192, 192, 192, 0.3);
+        }
+        .leaderboard-item.rank-3 {
+            background: linear-gradient(135deg, #cd7f32, #e8a566);
+            color: #000;
+            border-color: #cd7f32;
+            box-shadow: 0 4px 30px rgba(205, 127, 50, 0.3);
+        }
+        .rank-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .rank-number {
+            font-size: 2rem;
+            font-weight: bold;
+            min-width: 50px;
+            text-align: center;
+        }
+        .rank-1 .rank-number {
+            font-size: 2.5rem;
+        }
+        .model-info {
+            flex: 1;
+        }
+        .model-name {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+        .model-description {
+            font-size: 0.85rem;
+            opacity: 0.7;
+        }
+        .rank-1 .model-description,
+        .rank-2 .model-description,
+        .rank-3 .model-description {
+            opacity: 0.8;
+        }
+        .elo-section {
+            text-align: right;
+        }
+        .elo-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+        .rank-1 .elo-value {
+            font-size: 2.5rem;
+        }
+        .elo-label {
+            font-size: 0.85rem;
+            opacity: 0.7;
+        }
+        .controls {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+        }
+        button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-weight: 600;
+        }
+        button:hover {
+            background-color: #444;
+            transform: translateY(-2px);
+        }
+        .primary-btn {
+            background: linear-gradient(135deg, #22d86f, #1fb861);
+        }
+        .primary-btn:hover {
+            background: linear-gradient(135deg, #1fb861, #1a9d52);
+        }
+        .trophy {
+            font-size: 2rem;
+            margin-right: 0.5rem;
+        }
+        .loading {
+            color: #4cc9f0;
+            font-style: italic;
+            text-align: center;
+            padding: 2rem;
+        }
+        .last-updated {
+            color: #666;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+            text-align: center;
+        }
+        .nav-links {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 1rem;
+        }
+        .nav-links a {
+            color: #4cc9f0;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            background-color: #252525;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .nav-links a:hover {
+            background-color: #333;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="nav-links">
+        <a href="/">← Home</a>
+        <a href="/rlhf">Rate Models</a>
+    </div>
+
+    <h1>🏆 Model Leaderboard</h1>
+    <p class="subtitle">ELO Rankings based on human preferences</p>
+
+    <div class="stats-banner">
+        <div class="number" id="totalComparisons">-</div>
+        <div class="label">Total Comparisons</div>
+    </div>
+
+    <div class="leaderboard-container" id="leaderboard">
+        <div class="loading">Loading leaderboard...</div>
+    </div>
+
+    <div class="last-updated" id="lastUpdated"></div>
+
+    <div class="controls">
+        <button class="primary-btn" onclick="window.location.href='/rlhf'">Rate More Models</button>
+        <button onclick="loadLeaderboard()">🔄 Refresh</button>
+    </div>
+
+    <script>
+        const descriptions = {
+            'human': 'Real human mouse movements from the dataset',
+            'base': 'Base diffusion model trained on human traces',
+            'rlhf': 'RLHF-trained model learning from your feedback',
+            'rl_classifier': 'RL model trained with classifier-based rewards'
+        };
+
+        async function loadLeaderboard() {
+            const leaderboardEl = document.getElementById('leaderboard');
+            const totalComparisonsEl = document.getElementById('totalComparisons');
+            const lastUpdatedEl = document.getElementById('lastUpdated');
+            
+            leaderboardEl.innerHTML = '<div class="loading">Loading leaderboard...</div>';
+
+            try {
+                const response = await fetch('/api/leaderboard');
+                if (!response.ok) {
+                    throw new Error('Failed to load leaderboard');
+                }
+
+                const data = await response.json();
+                const leaderboard = data.leaderboard;
+                const totalComparisons = data.total_comparisons;
+
+                // Update total comparisons
+                totalComparisonsEl.textContent = totalComparisons.toLocaleString();
+
+                // Build leaderboard HTML
+                let html = '';
+                leaderboard.forEach((entry, index) => {
+                    const rank = index + 1;
+                    const rankClass = `rank-${rank}`;
+                    const trophy = rank === 1 ? '🥇' : (rank === 2 ? '🥈' : (rank === 3 ? '🥉' : ''));
+                    
+                    html += `
+                        <div class="leaderboard-item ${rank <= 3 ? rankClass : ''}">
+                            <div class="rank-section">
+                                <div class="rank-number">${trophy || `#${rank}`}</div>
+                                <div class="model-info">
+                                    <div class="model-name">${entry.name}</div>
+                                    <div class="model-description">${descriptions[entry.model_id] || ''}</div>
+                                </div>
+                            </div>
+                            <div class="elo-section">
+                                <div class="elo-value">${entry.elo}</div>
+                                <div class="elo-label">ELO Rating</div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                leaderboardEl.innerHTML = html;
+
+                // Update last updated time
+                const now = new Date();
+                lastUpdatedEl.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+
+            } catch (error) {
+                console.error('Error loading leaderboard:', error);
+                leaderboardEl.innerHTML = '<div class="loading" style="color: #ff4d5a;">Error loading leaderboard. Please refresh.</div>';
+            }
+        }
+
+        // Auto-refresh every 10 seconds
+        setInterval(loadLeaderboard, 10000);
+
+        // Initial load
+        loadLeaderboard();
+    </script>
+</body>
+</html>

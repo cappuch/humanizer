@@ -12,3 +12,7 @@ data/
 
 trace.json
 .DS_Store
+
+models/**
+
+!models/diffusion_rlhf_best.pt

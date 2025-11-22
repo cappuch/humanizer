@@ -130,6 +130,7 @@
         let startTime = 0;
         let currentMousePos = { x: WIDTH / 2, y: HEIGHT / 2 };
         let sessionTraceCount = 0;
+        let modelPath = [];
 
         function getRandomInt(min, max) {
             return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -139,7 +140,7 @@
             return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
         }
 
-        function nextPair() {
+        async function nextPair() {
             startPoint = currentMousePos;
             endPoint = {
                 x: getRandomInt(MARGIN, WIDTH - MARGIN),
@@ -147,17 +148,49 @@
             };
             
             // Ensure start and end are not too close
-            while (distance(startPoint, endPoint) < 200) {
+            while (distance(startPoint, endPoint) < 20) {
                  endPoint = {
                     x: getRandomInt(MARGIN, WIDTH - MARGIN),
                     y: getRandomInt(MARGIN, HEIGHT - MARGIN)
                 };
             }
 
+            // Generate model's path for this pair
+            await generateModelPath();
+            
             drawScene();
-            statusEl.textContent = "Click and drag from green to red. Release when done.";
+            statusEl.textContent = "Draw a DIFFERENT path from the grey one! Click green, drag to red.";
             isRecording = false;
             trace = [];
+        }
+
+        async function generateModelPath() {
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        start_x: startPoint.x,
+                        start_y: startPoint.y,
+                        end_x: endPoint.x,
+                        end_y: endPoint.y,
+                        steps: 50,
+                        smooth: true
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    modelPath = data.path;
+                } else {
+                    modelPath = [];
+                }
+            } catch (error) {
+                console.error('Error generating model path:', error);
+                modelPath = [];
+            }
         }
 
         function drawScene(isTrail = false) {
@@ -166,6 +199,21 @@
                 ctx.fillRect(0, 0, WIDTH, HEIGHT);
             } else {
                 ctx.clearRect(0, 0, WIDTH, HEIGHT);
+            }
+
+            // Draw model's path in grey (behind everything)
+            if (modelPath.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(modelPath[0].x, modelPath[0].y);
+                for (let i = 1; i < modelPath.length; i++) {
+                    ctx.lineTo(modelPath[i].x, modelPath[i].y);
+                }
+                ctx.strokeStyle = "#444";
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.setLineDash([5, 5]);
+                ctx.stroke();
+                ctx.setLineDash([]);
             }
 
             ctx.beginPath();
@@ -218,7 +266,7 @@
             isRecording = true;
             trace = [{ x: startPoint.x, y: startPoint.y, t: 0 }];
             startTime = performance.now();
-            statusEl.textContent = "Recording… move towards the red circle.";
+            statusEl.textContent = "Recording… draw DIFFERENTLY from the grey path!";
             drawScene(false);
         });
 
