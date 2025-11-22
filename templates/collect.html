@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Human Trace Collector</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        canvas {
+            background-color: #0b0e17;
+            border: 1px solid #333;
+            cursor: crosshair;
+            touch-action: none; /* Prevent scrolling on touch devices */
+        }
+        #status {
+            margin-top: 1rem;
+            font-size: 1.2rem;
+            color: #ccc;
+        }
+        .controls {
+            margin-top: 1rem;
+            display: flex;
+            gap: 1rem;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            cursor: pointer;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #444;
+        }
+
+        /* TV Corner Styles */
+        .tv-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+            background: #222;
+            border: 10px solid #333;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+        .tv-screen {
+            width: 100%;
+            height: 180px;
+            background: #000;
+            position: relative;
+            overflow: hidden;
+        }
+        .tv-screen iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .tv-controls-panel {
+            background: #333;
+            padding: 8px;
+            display: flex;
+            justify-content: space-around;
+            border-top: 2px solid #222;
+        }
+        .tv-btn {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            background: #555;
+            color: #fff;
+            border: 1px solid #222;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+        .tv-btn:hover {
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>plz give me data</h1>
+    <canvas id="canvas" width="640" height="360"></canvas>
+    <div id="status">Click the green circle and drag to the red circle.</div>
+    <div id="session-stats" style="margin-top: 0.5rem; color: #888; font-size: 0.9rem;">Session traces: 0</div>
+    <div class="controls">
+        <button id="skipBtn">Skip / Next</button>
+    </div>
+
+    <!-- TV Corner -->
+    <div class="tv-container">
+        <div class="tv-screen" id="tvScreen"></div>
+        <div class="tv-controls-panel">
+            <button class="tv-btn" onclick="setChannel('spongebob')">SpongeBob</button>
+            <button class="tv-btn" onclick="setChannel('familyguy')">Family Guy</button>
+            <button class="tv-btn" onclick="setChannel('off')">OFF</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const statusEl = document.getElementById('status');
+        const sessionStatsEl = document.getElementById('session-stats');
+        const skipBtn = document.getElementById('skipBtn');
+
+        const WIDTH = canvas.width;
+        const HEIGHT = canvas.height;
+        const MARGIN = 5;
+        const RADIUS = 12;
+
+        let startPoint = { x: 0, y: 0 };
+        let endPoint = { x: 0, y: 0 };
+        let isRecording = false;
+        let trace = [];
+        let startTime = 0;
+        let currentMousePos = { x: WIDTH / 2, y: HEIGHT / 2 };
+        let sessionTraceCount = 0;
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function distance(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        function nextPair() {
+            startPoint = currentMousePos;
+            endPoint = {
+                x: getRandomInt(MARGIN, WIDTH - MARGIN),
+                y: getRandomInt(MARGIN, HEIGHT - MARGIN)
+            };
+            
+            // Ensure start and end are not too close
+            while (distance(startPoint, endPoint) < 200) {
+                 endPoint = {
+                    x: getRandomInt(MARGIN, WIDTH - MARGIN),
+                    y: getRandomInt(MARGIN, HEIGHT - MARGIN)
+                };
+            }
+
+            drawScene();
+            statusEl.textContent = "Click and drag from green to red. Release when done.";
+            isRecording = false;
+            trace = [];
+        }
+
+        function drawScene(isTrail = false) {
+            if (isTrail) {
+                ctx.fillStyle = 'rgba(11, 14, 23, 0.2)';
+                ctx.fillRect(0, 0, WIDTH, HEIGHT);
+            } else {
+                ctx.clearRect(0, 0, WIDTH, HEIGHT);
+            }
+
+            ctx.beginPath();
+            ctx.arc(startPoint.x, startPoint.y, RADIUS, 0, 2 * Math.PI);
+            ctx.fillStyle = "#22d86f";
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(endPoint.x, endPoint.y, RADIUS, 0, 2 * Math.PI);
+            ctx.fillStyle = "#ff4d5a";
+            ctx.fill();
+
+            if (isTrail &&trace.length > 1) {
+                // Draw only the last segment
+                const last = trace[trace.length - 1];
+                const prev = trace[trace.length - 2];
+                ctx.beginPath();
+                ctx.moveTo(prev.x, prev.y);
+                ctx.lineTo(last.x, last.y);
+                ctx.strokeStyle = "#4cc9f0";
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+            } else if (!isTrail && trace.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(trace[0].x, trace[0].y);
+                for (let i = 1; i < trace.length; i++) {
+                    ctx.lineTo(trace[i].x, trace[i].y);
+                }
+                ctx.strokeStyle = "#4cc9f0";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: evt.clientX - rect.left,
+                y: evt.clientY - rect.top
+            };
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e);
+            if (distance(pos, startPoint) > 40) {
+                statusEl.textContent = "Start inside the green circle to record.";
+                return;
+            }
+            isRecording = true;
+            trace = [{ x: startPoint.x, y: startPoint.y, t: 0 }];
+            startTime = performance.now();
+            statusEl.textContent = "Recording… move towards the red circle.";
+            drawScene(false);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getMousePos(e);
+            currentMousePos = pos;
+            if (!isRecording) return;
+            const t = (performance.now() - startTime) / 1000; // seconds
+            trace.push({ x: pos.x, y: pos.y, t: t });
+            drawScene(true);
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (!isRecording) return;
+            isRecording = false;
+            const pos = getMousePos(e);
+
+            if (trace.length < 2) {
+                statusEl.textContent = "Trace too short, try again.";
+                trace = [];
+                drawScene(false);
+                return;
+            }
+
+            if (distance(pos, endPoint) > 60) {
+                statusEl.textContent = "Finish inside the red circle to store the trace.";
+                trace = [];
+                drawScene(false);
+                return;
+            }
+
+            saveTrace();
+        });
+        
+        // Touch support
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent("mousedown", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent("mousemove", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const mouseEvent = new MouseEvent("mouseup", {});
+            canvas.dispatchEvent(mouseEvent);
+        }, { passive: false });
+
+
+        async function saveTrace() {
+            const dx = endPoint.x - startPoint.x;
+            const dy = endPoint.y - startPoint.y;
+            const scale = Math.max(Math.abs(dx), Math.abs(dy), 1.0);
+            const relativeTarget = { x: dx / scale, y: dy / scale };
+
+            const relPath = trace.map(p => ({
+                x: (p.x - startPoint.x) / scale,
+                y: (p.y - startPoint.y) / scale,
+                t: p.t
+            }));
+
+            const payload = {
+                start: { x: Math.round(startPoint.x), y: Math.round(startPoint.y) },
+                end: { x: Math.round(endPoint.x), y: Math.round(endPoint.y) },
+                scale: scale,
+                target: { dx: relativeTarget.x, dy: relativeTarget.y },
+                path: relPath
+            };
+
+            try {
+                const response = await fetch('/api/save_trace', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    sessionTraceCount++;
+                    sessionStatsEl.textContent = `Session traces: ${sessionTraceCount}`;
+                    statusEl.textContent = `Saved! Total samples: ${data.count}. Next pair…`;
+                    setTimeout(nextPair, 100);
+                } else {
+                    statusEl.textContent = "Error saving trace.";
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                statusEl.textContent = "Network error.";
+            }
+        }
+
+        skipBtn.addEventListener('click', nextPair);
+
+        // TV Logic
+        const tvScreen = document.getElementById('tvScreen');
+        const channels = {
+            spongebob: `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/pr80hyFCeGY?list=PLaMHyq8hhBW1puOzcGpRtNikKGigiFTAa" title="SpongeBob" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>`,
+            familyguy: `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/NXCRXDs9U3M?list=PLzkgfyEM9ZQiymwlVegBfOW3Okdiie59n" title="Family Guy" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>`,
+            off: `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#444;background:#000;font-family:monospace;">NO SIGNAL</div>`
+        };
+
+        function setChannel(name) {
+            if (channels[name]) {
+                tvScreen.innerHTML = channels[name];
+            }
+        }
+
+        // Turn on TV
+        setChannel('spongebob');
+
+        // Initialize
+        nextPair();
+    </script>
+</body>
+</html>

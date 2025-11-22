@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Humanizer Demo</title>
+    <style>
+        :root {
+            --primary-color: #60a5fa;
+            --primary-hover: #3b82f6;
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --input-bg: #020617;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 40px;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 60px;
+            max-width: 1600px;
+            margin: 0 auto;
+            align-items: start;
+            min-height: 100vh;
+        }
+
+        @media (max-width: 1024px) {
+            body { grid-template-columns: 1fr; }
+        }
+
+        /* Left Column */
+        .demo-area {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-color);
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            background: var(--input-bg);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%; /* 16:9 */
+            cursor: crosshair;
+        }
+        canvas {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+        }
+
+        /* Controls Panel */
+        .controls-panel {
+            background: var(--panel-bg);
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            align-items: end;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .coord-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        input[type="number"], input[type="text"] {
+            padding: 10px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-color);
+            font-size: 0.95rem;
+            width: 100%;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        
+        input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+
+        button {
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: #0f172a;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 42px;
+        }
+        button:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
+        button:disabled { background-color: var(--text-muted); cursor: not-allowed; transform: none; }
+
+        /* Stats */
+        .stats-row {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            padding: 10px 0;
+            border-top: 1px solid var(--border-color);
+            margin-top: 10px;
+            grid-column: 1 / -1;
+        }
+        .stat-item { display: flex; gap: 8px; align-items: baseline; }
+        .stat-value { font-family: monospace; font-size: 1.1rem; color: var(--primary-color); }
+
+        /* Advanced */
+        .advanced-section {
+            grid-column: 1 / -1;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+        .advanced-toggle {
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        .advanced-toggle svg { transition: transform 0.2s; }
+        .advanced-toggle.open svg { transform: rotate(90deg); }
+        
+        .advanced-settings {
+            display: none;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+        }
+        .advanced-settings.open { display: grid; }
+
+        /* Right Column */
+        .writeup {
+            padding-top: 10px;
+        }
+        .writeup h2 { color: var(--text-color); margin-top: 0; font-size: 1.5rem; margin-bottom: 20px; }
+        .writeup p { line-height: 1.7; color: var(--text-muted); margin-bottom: 20px; }
+        .writeup code { background: var(--panel-bg); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: var(--primary-color); }
+
+        .mouse-cursor {
+            position: absolute;
+            width: 24px; height: 24px;
+            pointer-events: none;
+            transform: translate(-2px, -2px);
+            z-index: 10;
+            display: none;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+        }
+        
+        /* Range & Checkbox */
+        input[type=range] { width: 100%; accent-color: var(--primary-color); }
+        .checkbox-wrapper { display: flex; align-items: center; gap: 10px; color: var(--text-color); cursor: pointer; }
+        .checkbox-wrapper input { width: 16px; height: 16px; accent-color: var(--primary-color); }
+    </style>
+</head>
+<body>
+    <div class="demo-area">
+        <header>
+            <h1>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
+                    <path d="M12 6v6l4 2"/>
+                </svg>
+                Humanizer Demo
+            </h1>
+        </header>
+        
+        <div class="canvas-wrapper">
+            <div id="canvas-container">
+                <canvas id="gridCanvas" width="640" height="360"></canvas>
+                <div id="cursor" class="mouse-cursor">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-panel">
+            <div class="control-group">
+                <label>Start Position</label>
+                <div class="coord-inputs">
+                    <input type="number" id="startX" value="188" placeholder="X">
+                    <input type="number" id="startY" value="136" placeholder="Y">
+                </div>
+            </div>
+            <div class="control-group">
+                <label>End Position</label>
+                <div class="coord-inputs">
+                    <input type="number" id="endX" value="358" placeholder="X">
+                    <input type="number" id="endY" value="199" placeholder="Y">
+                </div>
+            </div>
+            
+            <button id="generateBtn" onclick="generateMovement()">
+                <span>Generate</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12h14M12 5l7 7-7 7"></path>
+                </svg>
+            </button>
+
+            <div class="stats-row">
+                <div class="stat-item">
+                    <label>Time:</label>
+                    <span class="stat-value" id="statDuration">0.37s</span>
+                </div>
+                <div class="stat-item">
+                    <label>Steps:</label>
+                    <span class="stat-value" id="statSteps">1</span>
+                </div>
+            </div>
+
+            <div class="advanced-section">
+                <div class="advanced-toggle" onclick="toggleAdvanced()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 18l6-6-6-6"></path>
+                    </svg>
+                    Advanced Settings
+                </div>
+                <div id="advancedSettings" class="advanced-settings">
+                    <div class="control-group">
+                        <label>Random Seed</label>
+                        <input type="number" id="seed" placeholder="Random" value="">
+                    </div>
+                    <div class="control-group">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <label>Playback Speed</label>
+                            <span id="speedVal" style="font-size: 0.85rem; color: var(--primary-color); font-family: monospace;">50</span>
+                        </div>
+                        <input type="range" id="animSpeed" min="1" max="100" value="50" oninput="document.getElementById('speedVal').textContent = this.value">
+                    </div>
+                    <div class="control-group">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <label>Inference Steps</label>
+                            <span id="stepsVal" style="font-size: 0.85rem; color: var(--primary-color); font-family: monospace;">50</span>
+                        </div>
+                        <input type="range" id="inferenceSteps" min="25" max="150" value="50" title="Steps" oninput="document.getElementById('stepsVal').textContent = this.value">
+                    </div>
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" id="smoothing" checked>
+                        <span>Smoothening</span>
+                    </label>
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" id="realtime" checked>
+                        <span>Real-time Diffusion</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="writeup">
+        <h2>About This Project</h2>
+        <p>
+            This is a demo of a <strong>diffusion model</strong> that was trained on about 600 samples of real human mouse movement data. (from my friends and me collecting data, using the <a href="/collect" style="color: var(--primary-color);">data collection page</a>)
+            The model is a 1D U-Net that refines (yes, refines) a straight line from x1,y1 to x2,y2 into a more human-like trajectory.
+        </p>
+        <p>
+            You can notice a few characteristics of human mistakes in the generated paths, like jitters and overshooting. But, it becomes an issue because literally almost every generated path has a banana-like curve to it. This is likey due to a small dataset, and a lack of diversity in movement styles. 
+            <br>One thing -- The model's banana-curve tendency can be somewhat mitigated by turning off clamping + smoothening, but then the model will just straight up overshoot, which isn't great either.
+        </p>
+        <img src="/static/curve.png" alt="Curve Example" style="width: 100%; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);">
+    </div> 
+
+    <script>
+        const canvas = document.getElementById('gridCanvas');
+        const ctx = canvas.getContext('2d');
+        const cursor = document.getElementById('cursor');
+        const generateBtn = document.getElementById('generateBtn');
+        const statsPanel = document.getElementById('statsPanel');
+        
+        // Canvas scaling for retina displays
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            drawGrid();
+            // Redraw points if they exist
+            const sx = parseFloat(document.getElementById('startX').value);
+            const sy = parseFloat(document.getElementById('startY').value);
+            const ex = parseFloat(document.getElementById('endX').value);
+            const ey = parseFloat(document.getElementById('endY').value);
+            drawPoints(sx, sy, ex, ey);
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Coordinate mapping (input coords are 640x360 base, map to actual canvas size)
+        const BASE_WIDTH = 640;
+        const BASE_HEIGHT = 360;
+
+        function mapX(x) { return x * (canvas.width / BASE_WIDTH); }
+        function mapY(y) { return y * (canvas.height / BASE_HEIGHT); }
+        function unmapX(x) { return x * (BASE_WIDTH / canvas.width); }
+        function unmapY(y) { return y * (BASE_HEIGHT / canvas.height); }
+
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#334155'; // Dark grid lines
+            ctx.lineWidth = 1;
+
+            const stepX = mapX(40);
+            const stepY = mapY(40);
+
+            for (let x = 0; x <= canvas.width; x += stepX) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            for (let y = 0; y <= canvas.height; y += stepY) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawPoints(sx, sy, ex, ey) {
+            drawGrid();
+            
+            const msx = mapX(sx);
+            const msy = mapY(sy);
+            const mex = mapX(ex);
+            const mey = mapY(ey);
+
+            // Start point
+            ctx.beginPath();
+            ctx.arc(msx, msy, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#10b981'; // Brighter green
+            ctx.fill();
+            
+            // End point
+            ctx.beginPath();
+            ctx.arc(mex, mey, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#ef4444'; // Brighter red
+            ctx.fill();
+        }
+
+        function toggleAdvanced() {
+            const settings = document.getElementById('advancedSettings');
+            const toggle = document.querySelector('.advanced-toggle');
+            settings.classList.toggle('open');
+            toggle.classList.toggle('open');
+        }
+
+        async function animatePath(path, isHistory = false) {
+            if (!isHistory) cursor.style.display = 'block';
+            
+            // Draw trace
+            ctx.beginPath();
+            ctx.moveTo(mapX(path[0].x), mapY(path[0].y));
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(mapX(path[i].x), mapY(path[i].y));
+            }
+            
+            if (isHistory) {
+                // Fade out previous history
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.1)'; // Dark bg fade
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw history trace
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+                ctx.lineWidth = 1;
+            } else {
+                // Final path
+                ctx.strokeStyle = 'rgba(96, 165, 250, 0.8)';
+                ctx.lineWidth = 3;
+            }
+            ctx.stroke();
+
+            if (isHistory) return; // Don't move cursor for history steps
+
+            const speedVal = document.getElementById('animSpeed').value;
+            const duration = 2000 * (50 / speedVal); // Adjust duration based on speed
+            const stepTime = duration / path.length;
+
+            for (let i = 0; i < path.length; i++) {
+                const point = path[i];
+                cursor.style.left = mapX(point.x) + 'px';
+                cursor.style.top = mapY(point.y) + 'px';
+                await new Promise(r => setTimeout(r, stepTime));
+            }
+        }
+
+        async function generateMovement() {
+            const sx = parseFloat(document.getElementById('startX').value);
+            const sy = parseFloat(document.getElementById('startY').value);
+            const ex = parseFloat(document.getElementById('endX').value);
+            const ey = parseFloat(document.getElementById('endY').value);
+            const seed = document.getElementById('seed').value;
+            const steps = document.getElementById('inferenceSteps').value;
+            const smooth = document.getElementById('smoothing').checked;
+            const realtime = document.getElementById('realtime').checked;
+
+            drawPoints(sx, sy, ex, ey);
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<span>Generating...</span>';
+            
+            // Reset stats
+            document.getElementById('statDuration').textContent = '0.00s';
+            document.getElementById('statSteps').textContent = '-';
+
+            try {
+                if (realtime) {
+                    // Use SSE for real-time streaming
+                    const params = new URLSearchParams({
+                        start_x: sx,
+                        start_y: sy,
+                        end_x: ex,
+                        end_y: ey,
+                        seed: seed || '',
+                        steps: steps,
+                        smooth: smooth
+                    });
+
+                    const eventSource = new EventSource(`/stream_generate?${params.toString()}`);
+                    
+                    eventSource.onmessage = async (event) => {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.done) {
+                            if (data.duration) {
+                                document.getElementById('statDuration').textContent = data.duration;
+                            }
+                            
+                            // If the server sends a final smoothed path, use it
+                            if (data.path) {
+                                window.lastPath = data.path;
+                            }
+
+                            eventSource.close();
+                            generateBtn.disabled = false;
+                            generateBtn.innerHTML = `
+                                <span>Generate</span>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                                </svg>`;
+                            
+                            // Animate the final path with the cursor
+                            // We need to store the last path received
+                            if (window.lastPath) {
+                                await animatePath(window.lastPath);
+                            }
+                            return;
+                        }
+
+                        // Update stats
+                        document.getElementById('statSteps').textContent = data.step;
+                        
+                        // Draw the current noisy path
+                        window.lastPath = data.path;
+                        drawPoints(sx, sy, ex, ey); // Clear canvas
+                        
+                        // Draw trace
+                        ctx.beginPath();
+                        ctx.moveTo(mapX(data.path[0].x), mapY(data.path[0].y));
+                        for (let i = 1; i < data.path.length; i++) {
+                            ctx.lineTo(mapX(data.path[i].x), mapY(data.path[i].y));
+                        }
+                        
+                        // Color changes as it gets cleaner
+                        const progress = 1 - (data.step / data.total_steps);
+                        const alpha = 0.3 + (progress * 0.7);
+                        ctx.strokeStyle = `rgba(96, 165, 250, ${alpha})`;
+                        ctx.lineWidth = 1 + (progress * 2);
+                        ctx.stroke();
+                    };
+
+                    eventSource.onerror = (err) => {
+                        console.error("EventSource failed:", err);
+                        eventSource.close();
+                        generateBtn.disabled = false;
+                        generateBtn.innerHTML = '<span>Generate</span>';
+                        alert("Connection lost during generation.");
+                    };
+
+                } else {
+                    // Standard non-streaming request
+                    const response = await fetch('/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            start_x: sx,
+                            start_y: sy,
+                            end_x: ex,
+                            end_y: ey,
+                            seed: seed ? parseInt(seed) : null,
+                            steps: parseInt(steps),
+                            smooth: smooth,
+                            show_process: false
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+
+                    document.getElementById('statDuration').textContent = data.stats.duration;
+                    document.getElementById('statSteps').textContent = '0';
+                    
+                    await animatePath(data.path);
+                    
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = `
+                        <span>Generate</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>`;
+                }
+
+            } catch (err) {
+                console.error(err);
+                alert('Failed to generate movement');
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<span>Generate</span>';
+            }
+        }
+
+        // Initial setup
+        setTimeout(resizeCanvas, 100);
+
+        // Click to set points
+        let settingStart = true;
+        const container = document.getElementById('canvas-container');
+        container.addEventListener('click', (e) => {
+            const rect = container.getBoundingClientRect();
+            const x = unmapX(e.clientX - rect.left);
+            const y = unmapY(e.clientY - rect.top);
+
+            if (settingStart) {
+                document.getElementById('startX').value = Math.round(x);
+                document.getElementById('startY').value = Math.round(y);
+                settingStart = false;
+            } else {
+                document.getElementById('endX').value = Math.round(x);
+                document.getElementById('endY').value = Math.round(y);
+                settingStart = true;
+            }
+            
+            const sx = parseFloat(document.getElementById('startX').value);
+            const sy = parseFloat(document.getElementById('startY').value);
+            const ex = parseFloat(document.getElementById('endX').value);
+            const ey = parseFloat(document.getElementById('endY').value);
+            
+            drawPoints(sx, sy, ex, ey);
+        });
+    </script>
+</body>
+</html>
