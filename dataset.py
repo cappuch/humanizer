@@ -23,13 +23,19 @@ class HumanTraceDataset(Dataset):
                     print(f"Error parsing line: {e}")
 
     def _process_sample(self, obj):
-        target = np.array([obj['target']['dx'], obj['target']['dy']], dtype=np.float32)
-        
         raw_path = obj['path']
-
         path_points = np.array([[p['x'], p['y']] for p in raw_path], dtype=np.float32)
         
+        start_point = path_points[0]
+        end_point = path_points[-1]
+        target = end_point - start_point  # [dx, dy]
+        
+        path_points = path_points - start_point
+        
         resampled_path = self._resample(path_points, self.seq_len)
+        
+        resampled_path[0] = np.array([0.0, 0.0], dtype=np.float32)
+        resampled_path[-1] = target.astype(np.float32)
         
         resampled_path = resampled_path.transpose(1, 0).astype(np.float32)
         

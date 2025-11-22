@@ -305,8 +305,7 @@
             The model is a 1D U-Net that refines (yes, refines) a straight line from x1,y1 to x2,y2 into a more human-like trajectory.
         </p>
         <p>
-            You can notice a few characteristics of human mistakes in the generated paths, like jitters and overshooting. But, it becomes an issue because literally almost every generated path has a banana-like curve to it. This is likey due to a small dataset, and a lack of diversity in movement styles. 
-            <br>One thing -- The model's banana-curve tendency can be somewhat mitigated by turning off clamping + smoothening, but then the model will just straight up overshoot, which isn't great either.
+            The dataset was collected by clicking anywhere inside a 12-pixel circle and drawing a path to another 12-pixel circle, so the recorded point was often slightly off from where people were intended to click. This offset confused the model and caused it to learn misaligned paths. Early outputs looked messy, and when smoothing was turned on, the model tended to overshoot the target, creating a curved, banana-like shape. (see image below)
         </p>
         <img src="/static/curve.png" alt="Curve Example" style="width: 100%; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);">
     </div> 

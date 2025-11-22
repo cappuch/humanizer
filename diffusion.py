@@ -27,7 +27,7 @@ class Diffusion:
         
         return sqrt_alphas_cumprod_t * x_start + sqrt_one_minus_alphas_cumprod_t * noise
 
-    def p_losses(self, x_start, t, cond, noise=None):
+    def p_losses(self, x_start, t, cond, noise=None, boundary_weight=10.0):
         if noise is None:
             noise = torch.randn_like(x_start)
             
@@ -35,7 +35,18 @@ class Diffusion:
         predicted_noise = self.model(x_noisy, t, cond)
         
         loss = F.mse_loss(predicted_noise, noise)
-        return loss
+        
+        sqrt_alphas_cumprod_t = self.sqrt_alphas_cumprod[t].view(-1, 1, 1)
+        sqrt_one_minus_alphas_cumprod_t = self.sqrt_one_minus_alphas_cumprod[t].view(-1, 1, 1)
+        pred_x0 = (x_noisy - sqrt_one_minus_alphas_cumprod_t * predicted_noise) / sqrt_alphas_cumprod_t
+        
+        start_loss = F.mse_loss(pred_x0[:, :, 0], torch.zeros_like(pred_x0[:, :, 0]))
+        end_loss = F.mse_loss(pred_x0[:, :, -1], cond)
+        boundary_loss = (start_loss + end_loss) / 2.0
+        
+        total_loss = loss + boundary_weight * boundary_loss
+        
+        return total_loss
 
     @torch.no_grad()
     def p_sample(self, x, t, cond, t_index):
@@ -58,8 +69,12 @@ class Diffusion:
     def sample_ddim(self, cond, shape, steps=50, clamp_boundaries=True):
         b = shape[0]
         L = shape[-1]
+
         t_vals = torch.linspace(0, 1, L, device=self.device).view(1, 1, L)
         img = cond.unsqueeze(-1) * t_vals
+        
+        img[:, :, 0] = 0.0
+        img[:, :, -1] = cond
         
         times = torch.linspace(0, self.timesteps - 1, steps, dtype=torch.long).flip(0).to(self.device)
         
@@ -77,6 +92,10 @@ class Diffusion:
                 alpha_bar_prev = self.alphas_cumprod[prev_step]
             
             pred_x0 = (img - torch.sqrt(1 - alpha_bar) * noise_pred) / torch.sqrt(alpha_bar)
+            
+            if clamp_boundaries:
+                pred_x0[:, :, 0] = 0.0
+                pred_x0[:, :, -1] = cond
             
             dir_xt = torch.sqrt(1 - alpha_bar_prev) * noise_pred
             
